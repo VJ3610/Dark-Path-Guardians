@@ -3,32 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pattern Prediction</title>
-    <link rel="stylesheet" href="{{url_for('static', filename='main.css')}}">
+    <title>Dark Pattern Detector</title>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1>Pattern Prediction</h1>
-        </div>
-    </header>
+    <h1>Dark Pattern Detector</h1>
+    <form method="post" action="/predict">
+        <label for="website_url">Enter Website URL:</label>
+        <input type="text" id="website_url" name="website_url" required>
+        <button type="submit">Predict</button>
+    </form>
 
-    <div class="container">
-        <form action="/predict" method="post">
-            <label for="paragraph">Enter a paragraph:</label>
-            <textarea name="paragraph" id="paragraph" rows="4" cols="50" placeholder="Type your paragraph here..." required></textarea>
-            <br>
-            <input type="submit" value="Predict">
-        </form>
-
-        <div class="result">
-            <h2>Matching Patterns:</h2>
-            {% if prediction is not none %}
-                {% for pattern in prediction %}
-                    <p>{{ pattern }}</p>
-                {% endfor %}
-            {% endif %}
-        </div>        
-    </div>
+    {% if detected_patterns %}
+        <h2>Detected dark patterns:</h2>
+        <ul>
+            {% for pattern_info in detected_patterns %}
+                <li>Pattern: '{{ pattern_info['Pattern'] }}', Pattern Category: '{{ pattern_info['PatternCategory'] }}'</li>
+            {% endfor %}
+        </ul>
+    {% elif message %}
+        <p>{{ message }}</p>
+    {% endif %}
 </body>
 </html>

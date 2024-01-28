@@ -1,65 +1,63 @@
 from flask import Flask, render_template, request
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.svm import SVC
-from sklearn.pipeline import make_pipeline
+import re
+import csv
 import requests
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-# Load the dark patterns dataset
-dark_data = pd.read_csv('dark.csv')
+def load_dark_patterns_from_csv(csv_file):
+    patterns = {}
+    with open(csv_file, 'r', encoding='utf-8-sig') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            text = row['text'].strip()
+            pattern_category = row['Pattern Category'].strip()
+            patterns[text] = pattern_category
+    return patterns
 
-# Print columns in dark_data for debugging
-print("Columns in dark_data:", dark_data.columns)
-
-X_train = dark_data['text']
-y_train = dark_data['label']
-
-# Create and train the model
-model = make_pipeline(TfidfVectorizer(), SVC(kernel='linear'))
-model.fit(X_train, y_train)
-
-def get_page_source(url):
+def detect_dark_patterns_in_website(url, patterns):
     try:
+        # Fetch the HTML content of the webpage
         response = requests.get(url)
-        response.raise_for_status()
-        return response.text
-    except requests.exceptions.RequestException as e:
-        return f"Error fetching page: {e}"
+        html_content = response.text
 
-def find_dark_patterns(page_source):
-    try:
-        predictions = model.predict([page_source])
-        matching_patterns = dark_data[dark_data['label'].isin(predictions)]['Pattern']
-        return matching_patterns
+        # Parse the HTML using BeautifulSoup
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # Extract text content from the webpage
+        page_text = soup.get_text()
+
+        # Check for the presence of dark patterns
+        detected_patterns = []
+        for pattern_text, pattern_category in patterns.items():
+            if pattern_category.lower() != 'not dark pattern' and re.search(re.escape(pattern_text), page_text, re.IGNORECASE):
+                detected_patterns.append({
+                    "Pattern": pattern_text,
+                    "PatternCategory": pattern_category
+                })
+
+        return detected_patterns
+
     except Exception as e:
-        return f"Error predicting: {e}"
+        return f"Error: {str(e)}"
 
 @app.route('/')
 def index():
-    return render_template('index.html', prediction=None)
+    return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    url = request.form.get('paragraph')
-    
-    if not url.startswith('http'):
-        url = 'http://' + url
-    
-    page_source = get_page_source(url)
-    
-    if page_source.startswith('Error'):
-        return render_template('index.html', prediction=None, error=page_source)
+    if request.method == 'POST':
+        website_url = request.form['website_url']
+        csv_file_path = "dark.csv"  # Replace with the actual path to your CSV file
+        patterns = load_dark_patterns_from_csv(csv_file_path)
+        detected_patterns = detect_dark_patterns_in_website(website_url, patterns)
 
-    # print("Page Source:", page_source)
-
-    try:
-        matching_patterns = find_dark_patterns(page_source)
-        print("Matching Patterns:", matching_patterns)
-        return render_template('index.html', prediction=matching_patterns, url=url, count=len(matching_patterns))
-    except Exception as e:
-        return render_template('index.html', prediction=None, error=f"Error predicting: {e}")
+        if detected_patterns:
+            return render_template('index.html', detected_patterns=detected_patterns)
+        else:
+            return render_template('index.html', message="No dark patterns detected.")
 
 if __name__ == '__main__':
     app.run(debug=True)
