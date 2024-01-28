@@ -2,5 +2,9 @@ body {
     width: 200px;
     height: 150px;
     padding: 10px;
-  }
+    font-family: 'Bangers', sans-serif;
+}
   
+#extensionIcon {
+    font-size: 48px; 
+}

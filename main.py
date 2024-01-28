@@ -3,8 +3,12 @@ import re
 import csv
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
-app = Flask(__name__)
+from flask_cors import CORS
+
+app = Flask(__name__, static_url_path='/static')
+CORS(app)  # Enable CORS for all routes
 
 def load_dark_patterns_from_csv(csv_file):
     patterns = {}
@@ -18,33 +22,43 @@ def load_dark_patterns_from_csv(csv_file):
 
 def detect_dark_patterns_in_website(url, patterns):
     try:
+        # Convert relative URL to absolute URL
+        absolute_url = urljoin("https://example.com", url)
+
         # Fetch the HTML content of the webpage
-        response = requests.get(url)
-        html_content = response.text
+        response = requests.get(absolute_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'})
+        response.raise_for_status()  # Raise an HTTPError for bad responses
 
-        # Parse the HTML using BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
+        # Check for successful response
+        if response.status_code == 200:
+            # Parse the HTML using BeautifulSoup
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Extract text content from the webpage
-        page_text = soup.get_text()
+            # Extract text content from the webpage
+            page_text = soup.get_text()
 
-        # Check for the presence of dark patterns
-        detected_patterns = []
-        for pattern_text, pattern_category in patterns.items():
-            if pattern_category.lower() != 'not dark pattern' and re.search(re.escape(pattern_text), page_text, re.IGNORECASE):
-                detected_patterns.append({
-                    "Pattern": pattern_text,
-                    "PatternCategory": pattern_category
-                })
+            # Check for the presence of dark patterns
+            detected_patterns = []
+            for pattern_text, pattern_category in patterns.items():
+                if pattern_category.lower() != 'not dark pattern' and re.search(re.escape(pattern_text), page_text, re.IGNORECASE):
+                    detected_patterns.append(f"{pattern_text} - {pattern_category}")
 
-        return detected_patterns
+            # Return a formatted plain text response with each detected pattern on a new line
+            if detected_patterns:
+                return '\n'.join(detected_patterns)
+            else:
+                return 'No dark patterns detected.'
+        else:
+            return f"Error: Unexpected response status code {response.status_code}"
 
+    except requests.RequestException as e:
+        return f"Error connecting to the website: {str(e)}"
     except Exception as e:
         return f"Error: {str(e)}"
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('popup.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -52,12 +66,9 @@ def predict():
         website_url = request.form['website_url']
         csv_file_path = "dark.csv"  # Replace with the actual path to your CSV file
         patterns = load_dark_patterns_from_csv(csv_file_path)
-        detected_patterns = detect_dark_patterns_in_website(website_url, patterns)
+        result = detect_dark_patterns_in_website(website_url, patterns)
 
-        if detected_patterns:
-            return render_template('index.html', detected_patterns=detected_patterns)
-        else:
-            return render_template('index.html', message="No dark patterns detected.")
+        return result
 
 if __name__ == '__main__':
     app.run(debug=True)

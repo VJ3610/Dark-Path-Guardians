@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Dark Pattern Detector",
+  "version": "1.0",
+  "description": "Detect dark patterns on websites",
+  "permissions": ["activeTab", "http://127.0.0.1:5000/"],
+  "action": {
+    "default_popup": "templates/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}
